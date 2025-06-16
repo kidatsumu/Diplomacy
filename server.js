@@ -51,8 +51,8 @@ function checkVictory() {
 io.on("connection", socket => {
   sockets.push(socket);
 
-  socket.on("startGame", ({ humanCount, cpu }) => {
-    players = nations.slice(0, humanCount + cpu);
+  socket.on("startGame", ({ humanCount, cpuCount }) => {
+    players = nations.slice(0, humanCount + cpuCount);
     cpuCount = cpu;
     const assignments = [...players];
     unitStates = createUnits(assignments);
