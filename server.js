@@ -5,7 +5,11 @@ const { Server } = require("socket.io");
 
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
+const io = new Server(server, {
+  cors: {
+    origin: "*"
+  }
+});
 
 app.use(express.static("public"));
 
@@ -52,8 +56,8 @@ io.on("connection", socket => {
   sockets.push(socket);
 
   socket.on("startGame", ({ humanCount, cpuCount }) => {
+    console.log("Received startGame:", humanCount, cpuCount);
     players = nations.slice(0, humanCount + cpuCount);
-    cpuCount = cpu;
     const assignments = [...players];
     unitStates = createUnits(assignments);
     players.forEach((nation, i) => {

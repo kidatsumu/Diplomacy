@@ -1,26 +1,43 @@
-<!-- index.html -->
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>Diplomacy Web</title>
 </head>
 <body>
   <canvas id="gameCanvas" width="800" height="600" style="display:none; border:1px solid gray; background-image: url('map.png'); background-size: cover;"></canvas>
+
   <div id="lobby" style="display: block; padding: 20px;">
     <h2>ゲーム設定</h2>
-    <label>人間プレイヤー数:<input type="number" id="humanCount" min="1" max="7" value="1"></label><br>
-    <label>CPUプレイヤー数:<input type="number" id="cpuCount" min="0" max="6" value="2"></label><br>
+    <label>
+      人間プレイヤー数:
+      <input type="number" id="humanCount" min="1" max="7" value="1">
+    </label>
+    <br>
+    <label>
+      CPUプレイヤー数:
+      <input type="number" id="cpuCount" min="0" max="6" value="2">
+    </label>
+    <br>
     <button onclick="startGame()">ゲーム開始</button>
   </div>
+
   <div id="nationInfo" style="display:none; padding: 10px; font-weight: bold;"></div>
   <div id="orderPanel" style="display:none; padding: 10px;">
     <p>ユニット命令:</p>
-    <label>移動先:<input type="text" id="moveTo"></label>
-    <button onclick="submitMove()">移動命令</button><br>
-    <label>支援対象:<input type="text" id="supportTarget"></label>
+    <label>
+      移動先:
+      <input type="text" id="moveTo">
+    </label>
+    <button onclick="submitMove()">移動命令</button>
+    <br>
+    <label>
+      支援対象:
+      <input type="text" id="supportTarget">
+    </label>
     <button onclick="submitSupport()">支援命令</button>
   </div>
+
   <div id="phaseInfo" style="display:none; padding: 10px; color: green; font-weight: bold;"></div>
   <div id="resolutionLog" style="display:none; padding: 10px; color: darkred;"></div>
   <div id="victoryInfo" style="display:none; padding: 10px; color: blue; font-size: 18px; font-weight: bold;"></div>
@@ -30,10 +47,91 @@
     <input type="text" id="chatInput" placeholder="メッセージを入力" style="width: 70%;">
     <button onclick="sendChat()">送信</button>
   </div>
+
   <script src="/socket.io/socket.io.js"></script>
   <script>
-    const socket = io();
-    // ... 省略：ここに既にCanvasに保存されているスクリプト部分が入ります ...
+    const socket = io({
+      transports: ['websocket'],
+      upgrade: false
+    });
+
+    let myNation = "";
+    socket.on("assignNation", nation => {
+      myNation = nation;
+      document.getElementById("lobby").style.display = "none";
+      document.getElementById("gameCanvas").style.display = "block";
+      document.getElementById("nationInfo").textContent = `あなたの国家: ${nation}`;
+      document.getElementById("nationInfo").style.display = "block";
+      document.getElementById("orderPanel").style.display = "block";
+      document.getElementById("chatArea").style.display = "block";
+    });
+
+    function startGame() {
+      const humanCount = parseInt(document.getElementById("humanCount").value);
+      const cpuCount = parseInt(document.getElementById("cpuCount").value);
+      console.log("startGame() called", humanCount, cpuCount);
+      socket.emit("startGame", { humanCount, cpuCount });
+    }
+
+    function submitMove() {
+      const to = document.getElementById("moveTo").value;
+      socket.emit("submitMove", { nation: myNation, from: myNation.slice(0, 2) + "1", to });
+    }
+
+    function submitSupport() {
+      const target = document.getElementById("supportTarget").value;
+      socket.emit("submitSupport", { nation: myNation, from: myNation.slice(0, 2) + "1", target });
+    }
+
+    socket.on("renderUnits", units => {
+      const canvas = document.getElementById("gameCanvas");
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (const unit of units) {
+        const x = Math.random() * 700 + 50;
+        const y = Math.random() * 500 + 50;
+        ctx.beginPath();
+        ctx.arc(x, y, 15, 0, 2 * Math.PI);
+        ctx.fillStyle = unit.nation === myNation ? "blue" : "gray";
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = "white";
+        ctx.fillText(unit.location, x - 10, y + 4);
+      }
+    });
+
+    socket.on("resolutionLog", msg => {
+      document.getElementById("resolutionLog").style.display = "block";
+      document.getElementById("resolutionLog").textContent = msg;
+    });
+
+    socket.on("victory", winner => {
+      const victory = document.getElementById("victoryInfo");
+      victory.style.display = "block";
+      victory.innerHTML = `${winner} が勝利しました！<br><button onclick=\"location.reload()\">再プレイ</button>`;
+      alert(`${winner} が勝利しました！ゲーム終了です。`);
+    });
+
+    socket.on("historyLog", history => {
+      const historyBox = document.getElementById("historyLog");
+      historyBox.style.display = "block";
+      historyBox.innerHTML = "<strong>履歴:</strong><br>" + history.map((line, i) => `${i + 1}. ${line}`).join("<br>");
+    });
+
+    socket.on("chat", ({ sender, message }) => {
+      const msgBox = document.getElementById("chatMessages");
+      msgBox.innerHTML += `<div><strong>${sender}:</strong> ${message}</div>`;
+      msgBox.scrollTop = msgBox.scrollHeight;
+    });
+
+    function sendChat() {
+      const input = document.getElementById("chatInput");
+      const text = input.value.trim();
+      if (text.length > 0) {
+        socket.emit("chat", text);
+        input.value = "";
+      }
+    }
   </script>
 </body>
 </html>
