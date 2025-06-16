@@ -1,4 +1,3 @@
-// server.js
 const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
@@ -11,7 +10,7 @@ const io = new Server(server, {
   }
 });
 
-app.use(express.static("public"));
+app.use(express.static("public")); // publicフォルダにindex.htmlなどを置く
 
 let players = [];
 let sockets = [];
@@ -21,7 +20,10 @@ let historyLog = [];
 let nations = ["イギリス", "フランス", "ドイツ", "イタリア", "ロシア", "オーストリア", "トルコ"];
 
 function createUnits(assignments) {
-  return assignments.map(nation => ({ nation, location: nation.slice(0, 2) + "1" }));
+  return assignments.map(nation => ({
+    nation,
+    location: nation.slice(0, 3).toUpperCase() // 例: "フラ" → "フラ1"
+  }));
 }
 
 function resolveOrders() {
@@ -54,15 +56,15 @@ function checkVictory() {
 io.on("connection", socket => {
   sockets.push(socket);
 
-  socket.on("startGame", ({ humanCount, cpuCount }) => {
-    console.log("Received startGame:", humanCount, cpuCount);
-    players = nations.slice(0, humanCount + cpuCount);
+  socket.on("startGame", ({ playerCount, cpuCount }) => {
+    console.log("ゲーム開始:", playerCount, cpuCount);
+    players = nations.slice(0, playerCount + cpuCount);
     const assignments = [...players];
     unitStates = createUnits(assignments);
 
     let humanAssigned = 0;
     for (let i = 0; i < sockets.length; i++) {
-      if (humanAssigned >= humanCount) break;
+      if (humanAssigned >= playerCount) break;
       const s = sockets[i];
       const nation = assignments[humanAssigned];
       s.nation = nation;
@@ -71,14 +73,19 @@ io.on("connection", socket => {
     }
 
     io.emit("renderUnits", unitStates);
+    io.emit("updateTurn", `春 1年`);
   });
 
-  socket.on("submitMove", ({ nation, from, to }) => {
+  socket.on("submitMove", ({ from, to }) => {
+    const nation = socket.nation || "匿名";
     moveOrders[from] = { type: "move", target: to, nation };
+    io.emit("logOrder", { from, to, type: "move" });
   });
 
-  socket.on("submitSupport", ({ nation, from, target }) => {
-    moveOrders[from] = { type: "support", target, nation };
+  socket.on("submitSupport", ({ from, to }) => {
+    const nation = socket.nation || "匿名";
+    moveOrders[from] = { type: "support", target: to, nation };
+    io.emit("logOrder", { from, to, type: "support" });
   });
 
   socket.on("resolvePhase", () => {
@@ -97,6 +104,11 @@ io.on("connection", socket => {
 
   socket.on("getReplay", () => {
     io.emit("replayData", [unitStates.map(u => ({ ...u }))]);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("切断:", socket.nation || "匿名");
+    sockets = sockets.filter(s => s !== socket);
   });
 });
 
