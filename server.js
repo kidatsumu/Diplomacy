@@ -15,7 +15,6 @@ app.use(express.static("public"));
 
 let players = [];
 let sockets = [];
-let cpuCount = 0;
 let unitStates = [];
 let moveOrders = {};
 let historyLog = [];
@@ -60,9 +59,17 @@ io.on("connection", socket => {
     players = nations.slice(0, humanCount + cpuCount);
     const assignments = [...players];
     unitStates = createUnits(assignments);
-    players.forEach((nation, i) => {
-      if (i < humanCount) sockets[i].emit("assignNation", nation);
-    });
+
+    let humanAssigned = 0;
+    for (let i = 0; i < sockets.length; i++) {
+      if (humanAssigned >= humanCount) break;
+      const s = sockets[i];
+      const nation = assignments[humanAssigned];
+      s.nation = nation;
+      s.emit("assignNation", nation);
+      humanAssigned++;
+    }
+
     io.emit("renderUnits", unitStates);
   });
 
@@ -84,7 +91,7 @@ io.on("connection", socket => {
   });
 
   socket.on("chat", msg => {
-    const sender = players[sockets.indexOf(socket)] || "匿名";
+    const sender = socket.nation || "匿名";
     io.emit("chat", { sender, message: msg });
   });
 
